@@ -7,6 +7,8 @@ const properties = propertiesReader('config.properties');
 
 const pool = createDbConnection();
 
+const allowedUserIds = properties.get("bot.allowedUsers").split(",");
+
 const CategoryType = {
     FOOD: {
         name: 'FOOD',
@@ -30,19 +32,20 @@ const StateType = {
 const states = {};
 const categoryStates = {};
 
-const EXPENSES = new Map();
-EXPENSES.set(CategoryType.FOOD, 0);
-EXPENSES.set(CategoryType.GENERAL, 0);
-EXPENSES.set(CategoryType.FUN, 0);
-
 const bot = new TelegramBot(properties.get("bot.apiKey"), {polling: true});
 
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
+    const userId = msg.from.id;
     const messageText = msg.text;
 
-    if (chatId && messageText) {
-        console.log(messageText);
+    console.log("UID:[" + userId + "] - MSG:[" + messageText + "]");
+
+    if (chatId && messageText && userId) {
+        if (!allowedUserIds.includes(userId.toString())) {
+            sendReplyMessage(bot, chatId, 'Нет доступа');
+            return;
+        }
 
         let categoryType = null;
         if (messageText === CategoryType.FOOD.command) {
@@ -59,6 +62,8 @@ bot.on('message', (msg) => {
             sendReplyMessage(bot, chatId, `Добавление расходов в категорию ${categoryType.name}. Введите сумму`);
         } else if (messageText === '/total') {
             sendTotal(bot, chatId);
+        } else if (messageText === '/prevTotal') {
+            sendPrevTotal(bot, chatId);
         } else if (messageText === '/cancel' || messageText === '/start') {
             states[chatId] = StateType.START;
             delete categoryStates[chatId];
@@ -83,10 +88,15 @@ bot.on('message', (msg) => {
                         category: categoryType.name,
                         datetime: formatDatetime(moment())
                     };
-                    insertEvent(eventData);
-
-                    sendReplyMessage(bot, chatId, 'Расход успешно добавлен!');
-                    sendTotal(bot, chatId);
+                    insertEvent(eventData)
+                        .then((result) => {
+                            sendReplyMessage(bot, chatId, 'Расход успешно добавлен!');
+                            sendTotal(bot, chatId);
+                        })
+                        .catch((error) => {
+                            console.error('Error:', error);
+                            sendReplyMessage(bot, chatId, 'Ошибка на сервере!');
+                        });
                     return;
                 } else {
                     sendReplyMessage(bot, chatId, 'Неправильный формат суммы!');
@@ -136,32 +146,75 @@ function sendTotal(bot, chatId) {
         })
         .catch((error) => {
             console.error('Error:', error);
+            sendReplyMessage(bot, chatId, 'Ошибка на сервере!');
+        });
+}
+
+function sendPrevTotal(bot, chatId) {
+    getEventsForPreviousMonth()
+        .then((result) => {
+            let totalAmount = 0;
+            let replyMessage = 'Расходы по категориям за предыдущий месяц (' + (moment().subtract(1, 'month').month() + 1) + '):\n';
+
+            result.forEach(item => {
+                replyMessage += `${item.category}: ${item.totalAmount}\n`;
+                totalAmount += parseInt(item.totalAmount);
+            })
+
+            replyMessage += `Всего: ${totalAmount}`;
+            sendReplyMessage(bot, chatId, replyMessage);
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+            sendReplyMessage(bot, chatId, 'Ошибка на сервере!');
         });
 }
 
 function insertEvent(event) {
-    pool.query('INSERT INTO event SET ?', event, (error, results, fields) => {
-        if (error) {
-            console.error(error);
-        }
+    return new Promise((resolve, reject) => {
+        pool.query('INSERT INTO event SET ?', event, (error, results, fields) => {
+            if (error) {
+                reject(error);
+            } else {
+                resolve(results);
+            }
+        });
     });
 }
 
 function getEventsForCurrentMonth() {
     return new Promise((resolve, reject) => {
-        // Get the current month and year
-        const currentDate = new Date();
-        const currentMonth = currentDate.getMonth() + 1; // Note: JavaScript months are zero-based
-        const currentYear = currentDate.getFullYear();
+        const currentDate = moment();
+        const currentMonth = currentDate.month() + 1;
+        const currentYear = currentDate.year();
 
-        // Construct the SQL query to get events for the current month
         const sql = `SELECT category, SUM(amount) AS totalAmount
                      FROM event
-                     WHERE MONTH(datetime) = ? AND YEAR(datetime) = ?
+                     WHERE MONTH (datetime) = ? AND YEAR (datetime) = ?
                      GROUP BY category`;
 
-        // Execute the query
         pool.query(sql, [currentMonth, currentYear], (error, results) => {
+            if (error) {
+                reject(error);
+            } else {
+                resolve(results);
+            }
+        });
+    });
+}
+
+function getEventsForPreviousMonth() {
+    return new Promise((resolve, reject) => {
+        const prevDate = moment().subtract(1, 'month');
+        const prevMonth = prevDate.month() + 1;
+        const prevYear = prevDate.year();
+
+        const sql = `SELECT category, SUM(amount) AS totalAmount
+                     FROM event
+                     WHERE MONTH (datetime) = ? AND YEAR (datetime) = ?
+                     GROUP BY category`;
+
+        pool.query(sql, [prevMonth, prevYear], (error, results) => {
             if (error) {
                 reject(error);
             } else {

@@ -1,5 +1,11 @@
 const TelegramBot = require('node-telegram-bot-api');
-const fs = require('fs');
+const mysql = require('mysql2');
+const propertiesReader = require('properties-reader');
+const moment = require('moment');
+
+const properties = propertiesReader('config.properties');
+
+const pool = createDbConnection();
 
 const CategoryType = {
     FOOD: {
@@ -29,8 +35,7 @@ EXPENSES.set(CategoryType.FOOD, 0);
 EXPENSES.set(CategoryType.GENERAL, 0);
 EXPENSES.set(CategoryType.FUN, 0);
 
-const token = fs.readFileSync('api-key.txt', 'utf8').trim();
-const bot = new TelegramBot(token, { polling: true });
+const bot = new TelegramBot(properties.get("bot.apiKey"), {polling: true});
 
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
@@ -73,13 +78,12 @@ bot.on('message', (msg) => {
                         return;
                     }
 
-                    if (EXPENSES.has(categoryType)) {
-                        const currentAmount = EXPENSES.get(categoryType);
-                        EXPENSES.set(categoryType, currentAmount + amount);
-                    } else {
-                        sendReplyMessage(bot, chatId, 'Такой категории не существует!');
-                        return;
-                    }
+                    const eventData = {
+                        amount: amount,
+                        category: categoryType.name,
+                        datetime: formatDatetime(moment())
+                    };
+                    insertEvent(eventData);
 
                     sendReplyMessage(bot, chatId, 'Расход успешно добавлен!');
                     sendTotal(bot, chatId);
@@ -101,13 +105,13 @@ function sendReplyMessage(bot, chatId, message) {
             one_time_keyboard: true,
             keyboard: [
                 [
-                    { text: CategoryType.FOOD.command },
-                    { text: CategoryType.GENERAL.command },
-                    { text: CategoryType.FUN.command }
+                    {text: CategoryType.FOOD.command},
+                    {text: CategoryType.GENERAL.command},
+                    {text: CategoryType.FUN.command}
                 ],
                 [
-                    { text: '/total' },
-                    { text: '/cancel' }
+                    {text: '/total'},
+                    {text: '/cancel'}
                 ]
             ]
         }
@@ -117,14 +121,69 @@ function sendReplyMessage(bot, chatId, message) {
 }
 
 function sendTotal(bot, chatId) {
-    let totalAmount = 0;
-    let replyMessage = 'Расходы по категориям:\n';
+    getEventsForCurrentMonth()
+        .then((result) => {
+            let totalAmount = 0;
+            let replyMessage = 'Расходы по категориям:\n';
 
-    for (const [category, amount] of EXPENSES) {
-        replyMessage += `${category.name}: ${amount}\n`;
-        totalAmount += amount;
-    }
+            result.forEach(item => {
+                replyMessage += `${item.category}: ${item.totalAmount}\n`;
+                totalAmount += parseInt(item.totalAmount);
+            })
 
-    replyMessage += `Всего: ${totalAmount}`;
-    sendReplyMessage(bot, chatId, replyMessage);
+            replyMessage += `Всего: ${totalAmount}`;
+            sendReplyMessage(bot, chatId, replyMessage);
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+        });
+}
+
+function insertEvent(event) {
+    pool.query('INSERT INTO event SET ?', event, (error, results, fields) => {
+        if (error) {
+            console.error(error);
+        }
+    });
+}
+
+function getEventsForCurrentMonth() {
+    return new Promise((resolve, reject) => {
+        // Get the current month and year
+        const currentDate = new Date();
+        const currentMonth = currentDate.getMonth() + 1; // Note: JavaScript months are zero-based
+        const currentYear = currentDate.getFullYear();
+
+        // Construct the SQL query to get events for the current month
+        const sql = `SELECT category, SUM(amount) AS totalAmount
+                     FROM event
+                     WHERE MONTH(datetime) = ? AND YEAR(datetime) = ?
+                     GROUP BY category`;
+
+        // Execute the query
+        pool.query(sql, [currentMonth, currentYear], (error, results) => {
+            if (error) {
+                reject(error);
+            } else {
+                resolve(results);
+            }
+        });
+    });
+}
+
+function createDbConnection() {
+    return mysql.createPool({
+        host: properties.get("db.host"),
+        port: properties.get("db.port"),
+        user: properties.get("db.username"),
+        password: properties.get("db.password"),
+        database: properties.get("db.name"),
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0
+    });
+}
+
+function formatDatetime(momentDatetime) {
+    return momentDatetime.format('YYYY-MM-DD HH:mm:ss');
 }

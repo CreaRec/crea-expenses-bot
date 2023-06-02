@@ -1,0 +1,3 @@
+ALTER TABLE event
+    ADD COLUMN user_id VARCHAR(30),
+    ADD COLUMN user_name VARCHAR(60)

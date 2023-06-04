@@ -111,9 +111,9 @@ bot.on('message', (msg) => {
                     };
                     insertEvent(eventData)
                         .then((result) => {
-                            sendAddConfirmationMessage(bot, chatId, result.insertId, eventData.amount, 'Расход успешно добавлен!');
+                            sendAddConfirmationMessage(bot, chatId, result.insertId, eventData.amount);
                             sendTotal(bot, chatId);
-                            sendNotifications(bot, eventData)
+                            sendNotifications(bot, result.insertId, eventData)
                         })
                         .catch((error) => {
                             console.error('Error:', error);
@@ -170,12 +170,12 @@ function sendReplyMessage(bot, chatId, message) {
     bot.sendMessage(chatId, message, keyboard);
 }
 
-function sendAddConfirmationMessage(bot, chatId, eventId, amount, message) {
+function sendAddConfirmationMessage(bot, chatId, eventId, amount) {
     const keyboard = {
         reply_markup: {
             inline_keyboard: [[
                 {
-                    text: 'Delete previous amount (' + amount + '$)',
+                    text: 'Удалить расход (' + amount + '$)',
                     callback_data: JSON.stringify({
                         command: 'delete',
                         amount: amount,
@@ -186,14 +186,28 @@ function sendAddConfirmationMessage(bot, chatId, eventId, amount, message) {
         }
     };
 
-    bot.sendMessage(chatId, message, keyboard);
+    bot.sendMessage(chatId, 'Расход успешно добавлен!', keyboard);
 }
 
-function sendNotifications(bot, eventData) {
+function sendNotifications(bot, eventId, eventData) {
     let currentUserId = eventData.user_id;
-    let message = `Пользователь ${eventData.user_name} (${currentUserId}) добавила сумму ${eventData.amount} в категорию ${eventData.category}`
+    let message = `Пользователь ${eventData.user_name} (${currentUserId}) добавил(а) сумму ${eventData.amount} в категорию ${eventData.category}`
     notifyUserIds.filter(userId => parseInt(userId) !== currentUserId).forEach(userId => {
-        bot.sendMessage(userId, message)
+        const keyboard = {
+            reply_markup: {
+                inline_keyboard: [[
+                    {
+                        text: 'Удалить расход (' + eventData.amount + '$)',
+                        callback_data: JSON.stringify({
+                            command: 'delete',
+                            amount: eventData.amount,
+                            eventId: eventId
+                        })
+                    }
+                ]]
+            }
+        };
+        bot.sendMessage(userId, message, keyboard)
     })
 }
 

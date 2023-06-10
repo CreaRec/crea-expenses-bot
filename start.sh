@@ -1,2 +1,2 @@
-sudo forever start index.js
+sudo forever start --uid creaexpbot index.js
 echo "Started..."

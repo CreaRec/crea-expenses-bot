@@ -1,2 +1,2 @@
-sudo forever stop creaexpbot
+echo $1 | sudo -S forever stop creaexpbot
 echo "Stopped..."

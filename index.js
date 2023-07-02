@@ -4,6 +4,7 @@ const propertiesReader = require('properties-reader');
 const moment = require('moment');
 const fs = require('fs');
 const path = require('path');
+const cron = require('node-cron');
 
 const properties = propertiesReader('config.properties');
 
@@ -48,6 +49,57 @@ const states = {};
 const categoryStates = {};
 
 const bot = new TelegramBot(properties.get("bot.apiKey"), {polling: true});
+
+let limitGeneral = properties.get("money.limit.general.monthly");
+let limitGeneralWeekly = properties.get("money.limit.general.weekly");
+let limitFood = properties.get("money.limit.food.monthly");
+let limitFun = properties.get("money.limit.fun.monthly");
+
+cron.schedule(properties.get("money.limit.notification.cron"), () => {
+    getGropedEventsForCurrentMonth()
+        .then((result) => {
+            let currentDay = moment().date();
+            let daysInMonth = moment().daysInMonth();
+            let currentWeekOfMonth = moment().week() - moment().startOf('month').week(); //zero based index
+            let currentDayOfWeek = Math.round(currentDay - currentWeekOfMonth * 7);
+
+            let todayLimitGeneralWeekly = Math.round(limitGeneralWeekly / 7 * currentDayOfWeek);
+            let todayLimitGeneral = Math.round(limitGeneral / daysInMonth * currentDay);
+            let todayLimitFood = Math.round(limitFood / daysInMonth * currentDay);
+            let todayLimitFun = Math.round(limitFun / daysInMonth * currentDay);
+
+            let replyMessage = `Итоги на сегодня (${formatDate(moment())}):\n`;
+            let weeklyReply;
+
+            result.forEach(item => {
+                if (item.category === CategoryType.FOOD.name) {
+                    replyMessage += getScheduledMessage(item.category, item.totalAmount, limitFood, todayLimitFood);
+                } else if (item.category === CategoryType.GENERAL.name) {
+                    replyMessage += getScheduledMessage(item.category, item.totalAmount, limitGeneral, todayLimitGeneral);
+                    weeklyReply = getScheduledMessage(item.category, item.totalAmount, limitGeneralWeekly, todayLimitGeneralWeekly, true);
+                } else if (item.category === CategoryType.FUN.name) {
+                    replyMessage += getScheduledMessage(item.category, item.totalAmount, limitFun, todayLimitFun);
+                }
+            })
+
+            if (weeklyReply) {
+                replyMessage += "\nИтог за неделю:\n";
+                replyMessage += weeklyReply;
+            }
+            allowedUserIds.forEach(userId => {
+                bot.sendMessage(userId, replyMessage)
+                    .then(() => {
+                        saveLogToFile("User with UID:[" + userId + "] received scheduled notification");
+                    })
+                    .catch((error) => {
+                        saveLogToFile("Ошибка на сервере при попытке отправить уведомление: " + error);
+                    });
+            });
+        })
+        .catch((error) => {
+            saveLogToFile("Ошибка на сервере при попытке отправить уведомление: " + error);
+        });
+});
 
 bot.on('message', (msg) => {
     const chatId = msg.chat.id;
@@ -377,6 +429,10 @@ function formatDatetime(momentDatetime) {
     return momentDatetime.format('YYYY-MM-DD HH:mm:ss');
 }
 
+function formatDate(momentDate) {
+    return momentDate.format('YYYY-MM-DD');
+}
+
 function saveLogToFile(log) {
     const logDirectory = './logs';
     const currentDate = moment();
@@ -397,4 +453,16 @@ function saveLogToFile(log) {
             console.error('Error saving log to file:', err);
         }
     });
+}
+
+function getScheduledMessage(category, totalAmount, limit, todayLimit, isWeekly) {
+    let resolutionMessage = '';
+    let difference  = todayLimit - totalAmount;
+    let isBad = difference < 0;
+    if (isBad) {
+        resolutionMessage = `На ${Math.abs(difference)}$ > лимита на сегодня (${todayLimit}$)`;
+    } else {
+        resolutionMessage = `Отлично! На ${Math.abs(difference)}$ < лимита на сегодня (${todayLimit}$)`;
+    }
+    return `${isBad ? '💩' : '🎉'} По категории ${category} ${isWeekly ? "за НЕДЕЛЮ " :  ""}потрачено ${totalAmount}$ из ${limit}$. ${resolutionMessage}\n`;
 }

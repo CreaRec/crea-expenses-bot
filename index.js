@@ -60,7 +60,7 @@ cron.schedule(properties.get("money.limit.notification.cron"), () => {
         .then((result) => {
             let currentDay = moment().date();
             let daysInMonth = moment().daysInMonth();
-            let currentWeekOfMonth = moment().week() - moment().startOf('month').week(); //zero based index
+            let currentWeekOfMonth = Math.floor(currentDay / 7); //zero based index
             let currentDayOfWeek = Math.round(currentDay - currentWeekOfMonth * 7);
 
             let todayLimitGeneralWeekly = Math.round(limitGeneralWeekly / 7 * currentDayOfWeek);

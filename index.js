@@ -22,7 +22,8 @@ const CommandType = {
     START: "/start",
     CANCEL: "/cancel",
     HELP: "/help",
-    REPORT: "/report"
+    REPORT: "/report",
+    SCHEDULED_REPORT: "/scheduledReport"
 }
 
 const CategoryType = {
@@ -56,49 +57,7 @@ let limitFood = properties.get("money.limit.food.monthly");
 let limitFun = properties.get("money.limit.fun.monthly");
 
 cron.schedule(properties.get("money.limit.notification.cron"), () => {
-    getGropedEventsForCurrentMonth()
-        .then((result) => {
-            let currentDay = moment().date();
-            let daysInMonth = moment().daysInMonth();
-            let currentWeekOfMonth = Math.floor(currentDay / 7); //zero based index
-            let currentDayOfWeek = Math.round(currentDay - currentWeekOfMonth * 7);
-
-            let todayLimitGeneralWeekly = Math.round(limitGeneralWeekly / 7 * currentDayOfWeek);
-            let todayLimitGeneral = Math.round(limitGeneral / daysInMonth * currentDay);
-            let todayLimitFood = Math.round(limitFood / daysInMonth * currentDay);
-            let todayLimitFun = Math.round(limitFun / daysInMonth * currentDay);
-
-            let replyMessage = `Итоги на сегодня (${formatDate(moment())}):\n`;
-            let weeklyReply;
-
-            result.forEach(item => {
-                if (item.category === CategoryType.FOOD.name) {
-                    replyMessage += getScheduledMessage(item.category, item.totalAmount, limitFood, todayLimitFood);
-                } else if (item.category === CategoryType.GENERAL.name) {
-                    replyMessage += getScheduledMessage(item.category, item.totalAmount, limitGeneral, todayLimitGeneral);
-                    weeklyReply = getScheduledMessage(item.category, item.totalAmount, limitGeneralWeekly, todayLimitGeneralWeekly, true);
-                } else if (item.category === CategoryType.FUN.name) {
-                    replyMessage += getScheduledMessage(item.category, item.totalAmount, limitFun, todayLimitFun);
-                }
-            })
-
-            if (weeklyReply) {
-                replyMessage += "\nИтог за неделю:\n";
-                replyMessage += weeklyReply;
-            }
-            allowedUserIds.forEach(userId => {
-                bot.sendMessage(userId, replyMessage)
-                    .then(() => {
-                        saveLogToFile("User with UID:[" + userId + "] received scheduled notification");
-                    })
-                    .catch((error) => {
-                        saveLogToFile("Ошибка на сервере при попытке отправить уведомление: " + error);
-                    });
-            });
-        })
-        .catch((error) => {
-            saveLogToFile("Ошибка на сервере при попытке отправить уведомление: " + error);
-        });
+    sendScheduledReport();
 });
 
 bot.on('message', (msg) => {
@@ -135,6 +94,8 @@ bot.on('message', (msg) => {
             sendHelp(bot, chatId);
         } else if (messageText === CommandType.REPORT) {
             sendReport(bot, chatId);
+        } else if (messageText === CommandType.SCHEDULED_REPORT) {
+            sendScheduledReport();
         } else if (messageText === CommandType.CANCEL || messageText === CommandType.START) {
             states[chatId] = StateType.START;
             delete categoryStates[chatId];
@@ -453,6 +414,52 @@ function saveLogToFile(log) {
             console.error('Error saving log to file:', err);
         }
     });
+}
+
+function sendScheduledReport() {
+    getGropedEventsForCurrentMonth()
+        .then((result) => {
+            let currentDay = moment().date();
+            let daysInMonth = moment().daysInMonth();
+            let currentWeekOfMonth = Math.floor(currentDay / 7); //zero based index
+            let currentDayOfWeek = Math.round(currentDay - currentWeekOfMonth * 7);
+
+            let todayLimitGeneralWeekly = Math.round(limitGeneralWeekly / 7 * currentDayOfWeek);
+            let todayLimitGeneral = Math.round(limitGeneral / daysInMonth * currentDay);
+            let todayLimitFood = Math.round(limitFood / daysInMonth * currentDay);
+            let todayLimitFun = Math.round(limitFun / daysInMonth * currentDay);
+
+            let replyMessage = `Итоги на сегодня (${formatDate(moment())}):\n`;
+            let weeklyReply;
+
+            result.forEach(item => {
+                if (item.category === CategoryType.FOOD.name) {
+                    replyMessage += getScheduledMessage(item.category, item.totalAmount, limitFood, todayLimitFood);
+                } else if (item.category === CategoryType.GENERAL.name) {
+                    replyMessage += getScheduledMessage(item.category, item.totalAmount, limitGeneral, todayLimitGeneral);
+                    weeklyReply = getScheduledMessage(item.category, item.totalAmount, limitGeneralWeekly, todayLimitGeneralWeekly, true);
+                } else if (item.category === CategoryType.FUN.name) {
+                    replyMessage += getScheduledMessage(item.category, item.totalAmount, limitFun, todayLimitFun);
+                }
+            })
+
+            if (weeklyReply) {
+                replyMessage += "\nИтог за неделю:\n";
+                replyMessage += weeklyReply;
+            }
+            allowedUserIds.forEach(userId => {
+                bot.sendMessage(userId, replyMessage)
+                    .then(() => {
+                        saveLogToFile("User with UID:[" + userId + "] received scheduled notification");
+                    })
+                    .catch((error) => {
+                        saveLogToFile("Ошибка на сервере при попытке отправить уведомление: " + error);
+                    });
+            });
+        })
+        .catch((error) => {
+            saveLogToFile("Ошибка на сервере при попытке отправить уведомление: " + error);
+        });
 }
 
 function getScheduledMessage(category, totalAmount, limit, todayLimit, isWeekly) {

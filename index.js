@@ -26,21 +26,6 @@ const CommandType = {
     SCHEDULED_REPORT: "/scheduledReport"
 }
 
-const CategoryType = {
-    FOOD: {
-        name: 'FOOD',
-        command: CommandType.FOOD
-    },
-    GENERAL: {
-        name: 'GENERAL',
-        command: CommandType.GENERAL
-    },
-    FUN: {
-        name: 'FUN',
-        command: CommandType.FUN
-    }
-};
-
 const StateType = {
     START: 'START',
     ADDING: 'ADDING'
@@ -52,9 +37,26 @@ const categoryStates = {};
 const bot = new TelegramBot(properties.get("bot.apiKey"), {polling: true});
 
 let limitGeneral = properties.get("money.limit.general.monthly");
-let limitGeneralWeekly = properties.get("money.limit.general.weekly");
 let limitFood = properties.get("money.limit.food.monthly");
 let limitFun = properties.get("money.limit.fun.monthly");
+
+const CategoryType = {
+    FOOD: {
+        name: 'FOOD',
+        command: CommandType.FOOD,
+        limit: limitFood
+    },
+    GENERAL: {
+        name: 'GENERAL',
+        command: CommandType.GENERAL,
+        limit: limitGeneral
+    },
+    FUN: {
+        name: 'FUN',
+        command: CommandType.FUN,
+        limit: limitFun
+    }
+};
 
 cron.schedule(properties.get("money.limit.notification.cron"), () => {
     sendScheduledReport();
@@ -228,14 +230,17 @@ function sendTotal(bot, chatId) {
     getGropedEventsForCurrentMonth()
         .then((result) => {
             let totalAmount = 0;
+            let totalLimit = 0;
             let replyMessage = 'Расходы по категориям:\n';
 
             result.forEach(item => {
-                replyMessage += `${item.category}: ${item.totalAmount}\n`;
+                let limit = CategoryType[item.category].limit;
+                replyMessage += `${item.category}: ${item.totalAmount} (${limit})\n`;
                 totalAmount += parseInt(item.totalAmount);
+                totalLimit += parseInt(limit);
             })
 
-            replyMessage += `Всего: ${totalAmount}`;
+            replyMessage += `Всего: ${totalAmount} (${totalLimit})`;
             sendReplyMessage(bot, chatId, replyMessage);
         })
         .catch((error) => {
@@ -421,32 +426,22 @@ function sendScheduledReport() {
         .then((result) => {
             let currentDay = moment().date();
             let daysInMonth = moment().daysInMonth();
-            let currentWeekOfMonth = Math.floor(currentDay / 7); //zero based index
-            let currentDayOfWeek = Math.round(currentDay - currentWeekOfMonth * 7);
-
-            let todayLimitGeneralWeekly = Math.round(limitGeneralWeekly / 7 * currentDayOfWeek);
             let todayLimitGeneral = Math.round(limitGeneral / daysInMonth * currentDay);
             let todayLimitFood = Math.round(limitFood / daysInMonth * currentDay);
             let todayLimitFun = Math.round(limitFun / daysInMonth * currentDay);
 
             let replyMessage = `Итоги на сегодня (${formatDate(moment())}):\n`;
-            let weeklyReply;
 
             result.forEach(item => {
                 if (item.category === CategoryType.FOOD.name) {
                     replyMessage += getScheduledMessage(item.category, item.totalAmount, limitFood, todayLimitFood);
                 } else if (item.category === CategoryType.GENERAL.name) {
                     replyMessage += getScheduledMessage(item.category, item.totalAmount, limitGeneral, todayLimitGeneral);
-                    weeklyReply = getScheduledMessage(item.category, item.totalAmount, limitGeneralWeekly, todayLimitGeneralWeekly, true);
                 } else if (item.category === CategoryType.FUN.name) {
                     replyMessage += getScheduledMessage(item.category, item.totalAmount, limitFun, todayLimitFun);
                 }
             })
 
-            if (weeklyReply) {
-                replyMessage += "\nИтог за неделю:\n";
-                replyMessage += weeklyReply;
-            }
             allowedUserIds.forEach(userId => {
                 bot.sendMessage(userId, replyMessage)
                     .then(() => {
@@ -462,7 +457,7 @@ function sendScheduledReport() {
         });
 }
 
-function getScheduledMessage(category, totalAmount, limit, todayLimit, isWeekly) {
+function getScheduledMessage(category, totalAmount, limit, todayLimit) {
     let resolutionMessage = '';
     let difference  = todayLimit - totalAmount;
     let isBad = difference < 0;
@@ -471,5 +466,5 @@ function getScheduledMessage(category, totalAmount, limit, todayLimit, isWeekly)
     } else {
         resolutionMessage = `Отлично! На ${Math.abs(difference)}$ < лимита на сегодня (${todayLimit}$)`;
     }
-    return `${isBad ? '💩' : '🎉'} По категории ${category} ${isWeekly ? "за НЕДЕЛЮ " :  ""}потрачено ${totalAmount}$ из ${limit}$. ${resolutionMessage}\n`;
+    return `${isBad ? '💩' : '🎉'} По категории ${category} потрачено ${totalAmount}$ из ${limit}$. ${resolutionMessage}\n`;
 }

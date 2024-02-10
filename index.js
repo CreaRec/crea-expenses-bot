@@ -242,8 +242,8 @@ function sendTotal(bot, chatId) {
 
             result.forEach(item => {
                 let limit = CategoryType[item.category].limit;
-                replyMessage += `${item.category}: ${item.totalAmount} (${limit})\n`;
-                totalAmount += parseInt(item.totalAmount);
+                replyMessage += `${item.category}: ${item.total_amount} (${limit})\n`;
+                totalAmount += parseInt(item.total_amount);
                 totalLimit += parseInt(limit);
             })
 
@@ -263,8 +263,8 @@ function sendPrevTotal(bot, chatId) {
             let replyMessage = 'Расходы по категориям за предыдущий месяц (' + (moment().subtract(1, 'month').month() + 1) + '):\n';
 
             result.forEach(item => {
-                replyMessage += `${item.category}: ${item.totalAmount}\n`;
-                totalAmount += parseInt(item.totalAmount);
+                replyMessage += `${item.category}: ${item.total_amount}\n`;
+                totalAmount += parseInt(item.total_amount);
             })
 
             replyMessage += `Всего: ${totalAmount}`;
@@ -309,7 +309,7 @@ function insertEvent(event) {
             if (error) {
                 reject(error);
             } else {
-                resolve(results);
+                resolve(results.rows);
             }
         });
     });
@@ -322,7 +322,7 @@ function deleteEvent(eventId) {
             if (error) {
                 reject(error);
             } else {
-                resolve(results);
+                resolve(results.rowCount);
             }
         });
     });
@@ -340,7 +340,7 @@ function getEventsForCurrentMonth() {
             if (error) {
                 reject(error);
             } else {
-                resolve(results);
+                resolve(results.rows);
             }
         });
     });
@@ -352,7 +352,7 @@ function getGropedEventsForCurrentMonth() {
         const currentMonth = currentDate.month() + 1;
         const currentYear = currentDate.year();
 
-	    const queryText = `SELECT category, SUM(amount) AS totalAmount
+	    const queryText = `SELECT category, SUM(amount) AS total_amount
 	                       FROM event
 	                       WHERE EXTRACT(MONTH FROM datetime) = $1
 		                     AND EXTRACT(YEAR FROM datetime) = $2
@@ -361,7 +361,7 @@ function getGropedEventsForCurrentMonth() {
             if (error) {
                 reject(error);
             } else {
-                resolve(results);
+                resolve(results.rows);
             }
         });
     });
@@ -373,7 +373,7 @@ function getGropedEventsForPreviousMonth() {
         const prevMonth = prevDate.month() + 1;
         const prevYear = prevDate.year();
 
-	    const queryText = `SELECT category, SUM(amount) AS totalAmount
+	    const queryText = `SELECT category, SUM(amount) AS total_amount
 	                       FROM event
 	                       WHERE EXTRACT(MONTH FROM datetime) = $1 AND EXTRACT(YEAR FROM datetime) = $2
 	                       GROUP BY category`;
@@ -381,7 +381,7 @@ function getGropedEventsForPreviousMonth() {
             if (error) {
                 reject(error);
             } else {
-                resolve(results);
+                resolve(results.rows);
             }
         });
     });
@@ -442,11 +442,11 @@ function sendScheduledReport() {
 
             result.forEach(item => {
                 if (item.category === CategoryType.FOOD.name) {
-                    replyMessage += getScheduledMessage(item.category, item.totalAmount, limitFood, todayLimitFood);
+                    replyMessage += getScheduledMessage(item.category, item.total_amount, limitFood, todayLimitFood);
                 } else if (item.category === CategoryType.GENERAL.name) {
-                    replyMessage += getScheduledMessage(item.category, item.totalAmount, limitGeneral, todayLimitGeneral);
+                    replyMessage += getScheduledMessage(item.category, item.total_amount, limitGeneral, todayLimitGeneral);
                 } else if (item.category === CategoryType.FUN.name) {
-                    replyMessage += getScheduledMessage(item.category, item.totalAmount, limitFun, todayLimitFun);
+                    replyMessage += getScheduledMessage(item.category, item.total_amount, limitFun, todayLimitFun);
                 }
             })
 

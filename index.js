@@ -133,9 +133,10 @@ bot.on('message', (msg) => {
                     };
                     insertEvent(eventData)
                         .then((result) => {
-                            sendAddConfirmationMessage(bot, chatId, result.insertId, eventData.amount);
+							const insertedId = result[0].id;
+                            sendAddConfirmationMessage(bot, chatId, insertedId, eventData.amount);
                             sendTotal(bot, chatId);
-                            sendNotifications(bot, result.insertId, eventData)
+                            sendNotifications(bot, insertedId, eventData)
                         })
                         .catch((error) => {
                             console.error('Error:', error);

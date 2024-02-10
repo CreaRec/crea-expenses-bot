@@ -10,8 +10,6 @@ const TG_BOT_EXPENSES_TOKEN = process.env.TG_BOT_EXPENSES_TOKEN;
 const TG_BOT_EXPENSES_DB_NAME = process.env.TG_BOT_EXPENSES_DB_NAME;
 const POSTGRES_USER = process.env.POSTGRES_USER;
 const POSTGRES_PASSWORD = process.env.POSTGRES_PASSWORD;
-console.log("DB user: " + POSTGRES_USER);
-console.log("DB password: " + POSTGRES_PASSWORD);
 console.log("DB name: " + TG_BOT_EXPENSES_DB_NAME);
 
 const properties = propertiesReader('config.properties');
@@ -393,9 +391,9 @@ function createDbConnection() {
 	return new Pool({
 		host: properties.get("db.host"),
 		port: properties.get("db.port"),
-		user: properties.get(POSTGRES_USER),
-		password: properties.get(POSTGRES_PASSWORD),
-		database: properties.get(TG_BOT_EXPENSES_DB_NAME),
+		user: POSTGRES_USER,
+		password: POSTGRES_PASSWORD,
+		database: TG_BOT_EXPENSES_DB_NAME,
 		max: 10, // Maximum number of clients in the pool
 		idleTimeoutMillis: 30000, // How long a client is allowed to remain idle before being closed
 	});

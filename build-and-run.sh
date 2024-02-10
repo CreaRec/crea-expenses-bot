@@ -3,8 +3,8 @@
 . /base_settings/customEnvVars.sh
 
 # Define your app name and image name
-APP_NAME="crea-expenses_bot"
-IMAGE_NAME="crea-expenses_bot"
+APP_NAME="crea-expenses-bot"
+IMAGE_NAME="crea-expenses-bot"
 
 # Stop the running container (if it exists)
 if docker ps -a --filter "name=$APP_NAME" --format '{{.Names}}' | grep -q $APP_NAME; then
@@ -26,6 +26,9 @@ docker run -d --name $APP_NAME --restart unless-stopped \
     -e TG_BOT_EXPENSES_TOKEN=$TG_BOT_EXPENSES_TOKEN \
     -e TG_BOT_EXPENSES_DB_NAME=$TG_BOT_EXPENSES_DB_NAME \
     $IMAGE_NAME
+
+# Connect the container to the network
+docker network connect postgres-network $IMAGE_NAME
 
 # Remove all unused images and data
 docker system prune -af

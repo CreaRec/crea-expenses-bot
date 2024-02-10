@@ -381,6 +381,12 @@ function getGropedEventsForPreviousMonth() {
 }
 
 function createDbConnection() {
+	console.log("Creating DB connection");
+	console.log("DB host: " + properties.get("db.host"));
+	console.log("DB port: " + properties.get("db.port"));
+	console.log("DB user: " + properties.get(process.env.POSTGRES_USER));
+	console.log("DB password: " + properties.get(process.env.POSTGRES_PASSWORD));
+	console.log("DB name: " + properties.get(process.env.TG_BOT_EXPENSES_DB_NAME));
 	return new Pool({
 		host: properties.get("db.host"),
 		port: properties.get("db.port"),

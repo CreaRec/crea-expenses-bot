@@ -1,7 +1,4 @@
 .idea
 node_modules
 package-lock.json
-config.properties
 logs
-config.properties.temp
-config.properties.latest

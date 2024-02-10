@@ -1,2 +1,0 @@
-Manage app on Synology NAS:
-https://github.com/StephanThierry/nodejs4synologynas

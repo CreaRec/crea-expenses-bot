@@ -1,5 +1,5 @@
 const TelegramBot = require('node-telegram-bot-api');
-const mysql = require('mysql2');
+const { Pool } = require('pg');
 const propertiesReader = require('properties-reader');
 const moment = require('moment');
 const fs = require('fs');
@@ -34,7 +34,7 @@ const StateType = {
 const states = {};
 const categoryStates = {};
 
-const bot = new TelegramBot(properties.get("bot.apiKey"), {polling: true});
+const bot = new TelegramBot(process.env.TG_BOT_EXPENSES_TOKEN, {polling: true});
 
 let limitGeneral = properties.get("money.limit.general.monthly");
 let limitFood = properties.get("money.limit.food.monthly");
@@ -295,7 +295,10 @@ function sendReport(bot, chatId) {
 
 function insertEvent(event) {
     return new Promise((resolve, reject) => {
-        pool.query('INSERT INTO event SET ?', event, (error, results, fields) => {
+	    const queryText = `INSERT INTO event (amount, category, datetime, user_id, user_name) 
+                           VALUES ($1, $2, $3, $4, $5) RETURNING *`;
+	    const queryParams = [event.amount, event.category, event.datetime, event.user_id, event.user_name];
+        pool.query(queryText, queryParams, (error, results, fields) => {
             if (error) {
                 reject(error);
             } else {
@@ -307,7 +310,8 @@ function insertEvent(event) {
 
 function deleteEvent(eventId) {
     return new Promise((resolve, reject) => {
-        pool.query('DELETE FROM event WHERE id=?', eventId, (error, results, fields) => {
+	    const queryText = 'DELETE FROM event WHERE id = $1';
+        pool.query(queryText, [eventId], (error, results, fields) => {
             if (error) {
                 reject(error);
             } else {
@@ -323,10 +327,9 @@ function getEventsForCurrentMonth() {
         const currentMonth = currentDate.month() + 1;
         const currentYear = currentDate.year();
 
-        const sql = `SELECT * FROM event
-                     WHERE MONTH (datetime) = ? AND YEAR (datetime) = ?`;
-
-        pool.query(sql, [currentMonth, currentYear], (error, results) => {
+	    const queryText = `SELECT * FROM event
+	                       WHERE EXTRACT(MONTH FROM datetime) = $1 AND EXTRACT(YEAR FROM datetime) = $2`;
+        pool.query(queryText, [currentMonth, currentYear], (error, results) => {
             if (error) {
                 reject(error);
             } else {
@@ -342,12 +345,12 @@ function getGropedEventsForCurrentMonth() {
         const currentMonth = currentDate.month() + 1;
         const currentYear = currentDate.year();
 
-        const sql = `SELECT category, SUM(amount) AS totalAmount
-                     FROM event
-                     WHERE MONTH (datetime) = ? AND YEAR (datetime) = ?
-                     GROUP BY category`;
-
-        pool.query(sql, [currentMonth, currentYear], (error, results) => {
+	    const queryText = `SELECT category, SUM(amount) AS totalAmount
+	                       FROM event
+	                       WHERE EXTRACT(MONTH FROM datetime) = $1
+		                     AND EXTRACT(YEAR FROM datetime) = $2
+	                       GROUP BY category`;
+        pool.query(queryText, [currentMonth, currentYear], (error, results) => {
             if (error) {
                 reject(error);
             } else {
@@ -363,12 +366,11 @@ function getGropedEventsForPreviousMonth() {
         const prevMonth = prevDate.month() + 1;
         const prevYear = prevDate.year();
 
-        const sql = `SELECT category, SUM(amount) AS totalAmount
-                     FROM event
-                     WHERE MONTH (datetime) = ? AND YEAR (datetime) = ?
-                     GROUP BY category`;
-
-        pool.query(sql, [prevMonth, prevYear], (error, results) => {
+	    const queryText = `SELECT category, SUM(amount) AS totalAmount
+	                       FROM event
+	                       WHERE EXTRACT(MONTH FROM datetime) = $1 AND EXTRACT(YEAR FROM datetime) = $2
+	                       GROUP BY category`;
+        pool.query(queryText, [prevMonth, prevYear], (error, results) => {
             if (error) {
                 reject(error);
             } else {
@@ -379,16 +381,15 @@ function getGropedEventsForPreviousMonth() {
 }
 
 function createDbConnection() {
-    return mysql.createPool({
-        host: properties.get("db.host"),
-        port: properties.get("db.port"),
-        user: properties.get("db.username"),
-        password: properties.get("db.password"),
-        database: properties.get("db.name"),
-        waitForConnections: true,
-        connectionLimit: 10,
-        queueLimit: 0
-    });
+	return new Pool({
+		host: properties.get("db.host"),
+		port: properties.get("db.port"),
+		user: properties.get(process.env.POSTGRES_USER),
+		password: properties.get(process.env.POSTGRES_PASSWORD),
+		database: properties.get(process.env.TG_BOT_EXPENSES_DB_NAME),
+		max: 10, // Maximum number of clients in the pool
+		idleTimeoutMillis: 30000, // How long a client is allowed to remain idle before being closed
+	});
 }
 
 function formatDatetime(momentDatetime) {

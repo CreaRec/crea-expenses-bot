@@ -6,6 +6,16 @@ const fs = require('fs');
 const path = require('path');
 const cron = require('node-cron');
 
+const TG_BOT_EXPENSES_TOKEN = process.env.TG_BOT_EXPENSES_TOKEN;
+const TG_BOT_EXPENSES_DB_NAME = process.env.TG_BOT_EXPENSES_DB_NAME;
+const POSTGRES_USER = process.env.POSTGRES_USER;
+const POSTGRES_PASSWORD = process.env.POSTGRES_PASSWORD;
+console.log("DB host: " + properties.get("db.host"));
+console.log("DB port: " + properties.get("db.port"));
+console.log("DB user: " + properties.get(POSTGRES_USER));
+console.log("DB password: " + properties.get(POSTGRES_PASSWORD));
+console.log("DB name: " + properties.get(TG_BOT_EXPENSES_DB_NAME));
+
 const properties = propertiesReader('config.properties');
 
 const pool = createDbConnection();
@@ -33,16 +43,6 @@ const StateType = {
 
 const states = {};
 const categoryStates = {};
-
-const TG_BOT_EXPENSES_TOKEN = process.env.TG_BOT_EXPENSES_TOKEN;
-const TG_BOT_EXPENSES_DB_NAME = process.env.TG_BOT_EXPENSES_DB_NAME;
-const POSTGRES_USER = process.env.POSTGRES_USER;
-const POSTGRES_PASSWORD = process.env.POSTGRES_PASSWORD;
-console.log("DB host: " + properties.get("db.host"));
-console.log("DB port: " + properties.get("db.port"));
-console.log("DB user: " + properties.get(POSTGRES_USER));
-console.log("DB password: " + properties.get(POSTGRES_PASSWORD));
-console.log("DB name: " + properties.get(TG_BOT_EXPENSES_DB_NAME));
 
 
 const bot = new TelegramBot(TG_BOT_EXPENSES_TOKEN, {polling: true});

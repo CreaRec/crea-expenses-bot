@@ -309,7 +309,7 @@ function insertEvent(event) {
             if (error) {
                 reject(error);
             } else {
-                resolve(results);
+                resolve(results.rows);
             }
         });
     });
@@ -322,7 +322,7 @@ function deleteEvent(eventId) {
             if (error) {
                 reject(error);
             } else {
-                resolve(results);
+                resolve(results.rowCount);
             }
         });
     });
@@ -340,7 +340,7 @@ function getEventsForCurrentMonth() {
             if (error) {
                 reject(error);
             } else {
-                resolve(results);
+                resolve(results.rows);
             }
         });
     });
@@ -361,7 +361,7 @@ function getGropedEventsForCurrentMonth() {
             if (error) {
                 reject(error);
             } else {
-                resolve(results);
+                resolve(results.rows);
             }
         });
     });
